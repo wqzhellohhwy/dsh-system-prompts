@@ -172,6 +172,50 @@ check('渲染出段名', text.includes('system-prompt:thinking-language'), '')
 check('渲染出组装后的段序', text.includes('harness:identity') && text.includes('deployment:persona-prefix'))
 check('渲染出配置文件路径', text.includes('system-prompts.json'))
 
+// ── 交互：段名可改 ────────────────────────────────────────────────
+// 段名输入框：每张卡片一个（与标题输入框区分开）。
+const idInputs = () => tree.root.findAll((n) => n.type === 'input' && String(n.props.className ?? '').includes('spm-idinput'))
+check('每条提示词都有段名输入框', idInputs().length === 2, String(idInputs().length))
+check(
+  '段名输入框初始值 = 条目 id',
+  idInputs()[0]?.props.value === 'thinking-language',
+  JSON.stringify(idInputs().map((n) => n.props.value)),
+)
+check('段名前缀 system-prompt: 可见', text.includes('system-prompt:'))
+
+// 改第一条的段名，验证 onChange 写入的是 id 字段
+await TestRenderer.act(async () => {
+  idInputs()[0].props.onChange({ target: { value: 'my-lang' } })
+})
+text = flat(tree.toJSON())
+check('改段名后输入框显示新值', idInputs()[0]?.props.value === 'my-lang')
+check('改段名后段名预览跟着变', text.includes('system-prompt:my-lang'), '')
+
+// 非法段名要给红字提示（空格不在 ID_RE 里）
+await TestRenderer.act(async () => {
+  idInputs()[0].props.onChange({ target: { value: 'bad name!' } })
+})
+text = flat(tree.toJSON())
+check('非法段名给出警告', text.includes('段名非法'), text.slice(0, 160))
+
+// 与另一条重名也要提示
+await TestRenderer.act(async () => {
+  idInputs()[0].props.onChange({ target: { value: 'style' } })
+})
+text = flat(tree.toJSON())
+check('段名重复给出警告', text.includes('段名与上面某条重复'), text.slice(0, 160))
+
+// 改回合法值，确认警告消失
+await TestRenderer.act(async () => {
+  idInputs()[0].props.onChange({ target: { value: 'my-lang' } })
+})
+text = flat(tree.toJSON())
+check('改回合法段名后警告消失', !text.includes('段名非法') && !text.includes('段名与上面某条重复'))
+
+// 稳定性：改段名不应导致输入框失焦（key 用的是本地 _k，不是 id）
+check('改段名后仍是同一个输入框实例（未因 key 变化而重建）', idInputs()[0] === idInputs()[0])
+
+
 // ── 交互：新增 ────────────────────────────────────────────────────
 const findByProps = (pred) => tree.root.findAll((n) => n.type === 'button' && pred(n.props))
 const buttonByText = (t) => findByProps((p) => flat(p.children).includes(t))[0]
@@ -206,7 +250,18 @@ text = flat(tree.toJSON())
 const post = calls.find((c) => c.method === 'POST' && c.url.endsWith('/state'))
 check('POST /state 已发送', !!post)
 check('POST 体含 3 条提示词', post ? JSON.parse(post.body).prompts.length === 3 : false, post ? String(JSON.parse(post.body).prompts.length) : 'no body')
+check(
+  'POST 体带上改过的段名 id',
+  post ? JSON.parse(post.body).prompts[0].id === 'my-lang' : false,
+  post ? String(JSON.parse(post.body).prompts[0].id) : 'no body',
+)
+check(
+  'POST 体不再带本地 key（_k 不会写进配置）',
+  post ? !('_k' in JSON.parse(post.body).prompts[0]) : false,
+  post ? JSON.stringify(Object.keys(JSON.parse(post.body).prompts[0])) : 'no body',
+)
 check('保存后状态提示 ✅', text.includes('已保存并生效'), text.slice(0, 200))
+check('保存后段名沿用改后的 id', text.includes('system-prompt:my-lang'))
 check('保存后第三条的段名出现（host 补发的 id）', /system-prompt:p-/.test(text))
 
 // ── 交互：删除（两步确认） ────────────────────────────────────────
