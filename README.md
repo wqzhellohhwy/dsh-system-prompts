@@ -54,6 +54,23 @@ dev_install_package  <本仓库绝对路径>  profile=<你的 profile>
 > 桌面版（Electron）用的是 `desktop` profile，而 `dsh plugin --profile desktop` 会被 CLI 拒绝
 > （该 profile 由桌面应用专属管理），需要走桌面版自己的插件界面。
 
+### ⚠️ 从旧名 `dsh-thinking-language` 升级
+
+本插件原名 **`dsh-thinking-language`**，因 2.0 起已泛化为系统提示词管理器而更名。
+GitHub 仓库已重命名（旧地址自动 301 跳转，老链接仍可用），**包名变了**，所以
+profile 里的装配 id 与依赖名也要跟着改：
+
+```powershell
+# 1) 依赖名 + profile 的 bundles 列表：dsh-thinking-language → dsh-system-prompts
+#    （改 <DSH_HOME>/profiles/<你的 profile>/package.json 的 dependencies 与 dsh.profile.bundles）
+# 2) node_modules 里的 junction 重建为新名
+# 3) 重启该入口
+```
+
+**不需要迁移数据**：配置文件名仍是 `<DSH_HOME>/system-prompts.json`，
+默认条目 id 仍是 `thinking-language`，段名与设置页 id 也都没动——
+换句话说，改名只影响「包怎么被装上」，不影响「已经配好的提示词」。
+
 ---
 
 ## 用法
