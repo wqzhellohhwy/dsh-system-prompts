@@ -201,8 +201,9 @@ check(
 )
 
 // 说明注释：把「要不要保存」讲清楚
-check('页头说明「所有改动都是草稿、需点保存」', text.includes('都是本页草稿') && text.includes('保存并生效'), '')
-check('段名旁有未保存状态提示', text.includes('未保存') || text.includes('与已生效的一致'), '')
+check('页头说明「改完点保存才生效」', text.includes('改完点') && text.includes('保存并生效'), '')
+// 「未保存」提示只在有改动时出现；无改动时不显示任何常驻状态（去掉噪音）。
+check('段名旁未保存提示只在 dirty 时出现', !text.includes('⏳ 未保存'), '初始态不应显示（只有页头说明会提保存，见上一条）')
 
 // 改第一条的段名，验证 onChange 写入的是 id 字段
 await TestRenderer.act(async () => {
@@ -210,6 +211,8 @@ await TestRenderer.act(async () => {
 })
 text = flat(tree.toJSON())
 check('改段名后输入框显示新值', idInputs()[0]?.props.value === 'my-lang')
+// 有改动后才出现「未保存」提示（与上面初始态不显示互为印证）
+check('改段名后出现「⏳ 未保存」提示', text.includes('⏳ 未保存'), text.slice(0, 160))
 
 // 非法段名要给红字提示（空格不在 ID_RE 里）
 await TestRenderer.act(async () => {
