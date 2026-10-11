@@ -183,13 +183,33 @@ check(
 )
 check('段名前缀 system-prompt: 可见', text.includes('system-prompt:'))
 
+// 去重：底部不再重复显示「段名 system-prompt:<id>」整行。
+// 判断依据：输入框里只剩固定前缀叶子节点 'system-prompt:'（每卡一个），
+// 不应再出现「前缀 + 具体 id」拼成的完整段名文本节点。
+const segTextNodes = tree.root.findAll(
+  (n) => typeof n.children?.[0] === 'string' && /^system-prompt:.+/.test(n.children[0]),
+)
+check(
+  '底部不再有完整的「system-prompt:<id>」文本行（段名只在输入框里）',
+  segTextNodes.length === 0,
+  JSON.stringify(segTextNodes.map((n) => n.children[0])),
+)
+check(
+  '输入框仍保留固定前缀（每卡一个）',
+  tree.root.findAll((n) => n.children?.[0] === 'system-prompt:').length === 2,
+  String(tree.root.findAll((n) => n.children?.[0] === 'system-prompt:').length),
+)
+
+// 说明注释：把「要不要保存」讲清楚
+check('页头说明「所有改动都是草稿、需点保存」', text.includes('都是本页草稿') && text.includes('保存并生效'), '')
+check('段名旁有未保存状态提示', text.includes('未保存') || text.includes('与已生效的一致'), '')
+
 // 改第一条的段名，验证 onChange 写入的是 id 字段
 await TestRenderer.act(async () => {
   idInputs()[0].props.onChange({ target: { value: 'my-lang' } })
 })
 text = flat(tree.toJSON())
 check('改段名后输入框显示新值', idInputs()[0]?.props.value === 'my-lang')
-check('改段名后段名预览跟着变', text.includes('system-prompt:my-lang'), '')
 
 // 非法段名要给红字提示（空格不在 ID_RE 里）
 await TestRenderer.act(async () => {
@@ -261,8 +281,13 @@ check(
   post ? JSON.stringify(Object.keys(JSON.parse(post.body).prompts[0])) : 'no body',
 )
 check('保存后状态提示 ✅', text.includes('已保存并生效'), text.slice(0, 200))
-check('保存后段名沿用改后的 id', text.includes('system-prompt:my-lang'))
-check('保存后第三条的段名出现（host 补发的 id）', /system-prompt:p-/.test(text))
+check('保存后段名输入框沿用改后的 id', idInputs()[0]?.props.value === 'my-lang')
+check(
+  '保存后「实际注册」不再提示（host 未改号）',
+  !text.includes('实际注册为'),
+  text.slice(0, 200),
+)
+check('保存后清除「有未保存的改动」', !text.includes('有未保存的改动'))
 
 // ── 交互：删除（两步确认） ────────────────────────────────────────
 const delBtn = buttonByText('删除')
