@@ -1,32 +1,27 @@
-# 覆盖示例：把语言改成别的（**改你 profile 的文件，不要改插件仓库里的**）
+# 覆盖示例（**改你 profile 的文件，不要改插件仓库里的**）
 #
 # 目标文件：<DSH_HOME>/profiles/<你的 profile>/cordis.patch.yml
 # 该层排在所有 bundle 层之后，同 id 条目按「完整替换语义」覆盖 bundle 里的那行。
 #
-# 下面四条按需取用，一次只留一条即可。
+# ⚠️ v2 起，插件运行时权威是 <DSH_HOME>/system-prompts.json（设置面板维护）。
+#    本文件里的 config **只在首次初始化那份配置文件时**生效——已经装过、
+#    已经生成过配置文件的机器上，改这里不会有任何效果，请改用设置面板。
 
-# ── 例 1：换成日文 ────────────────────────────────────────────────────────────
-- id: thinking-language
-  name: dsh-thinking-language
+# ── 例 1：首次初始化时把默认那条换成日文 ─────────────────────────────────────
+- id: system-prompts
+  name: dsh-system-prompts
   config:
     language: ja
 
-# ── 例 2：换成繁体中文，并把段排到最后（10200 之后） ─────────────────────────
-# - id: thinking-language
-#   name: dsh-thinking-language
-#   config:
-#     language: zh-TW
-#     order: 10300
-
-# ── 例 3：完全自定义措辞（text 给了就覆盖内置模板） ───────────────────────────
-# - id: thinking-language
-#   name: dsh-thinking-language
+# ── 例 2：首次初始化时用完全自定义的正文（text 给了就覆盖语言模板） ──────────
+# - id: system-prompts
+#   name: dsh-system-prompts
 #   config:
 #     text: >-
 #       全程使用简体中文思考与作答。代码、标识符、路径、命令名与工具原始输出保持原样。
 
-# ── 例 4：临时关掉（保留依赖，不注册段） ─────────────────────────────────────
-# - id: thinking-language
-#   name: dsh-thinking-language
+# ── 例 3：首次初始化即为停用（不注册任何段，依赖仍在） ───────────────────────
+# - id: system-prompts
+#   name: dsh-system-prompts
 #   config:
 #     enabled: false

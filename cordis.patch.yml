@@ -1,18 +1,22 @@
-# dsh-thinking-language — bundle patch layer.
+# dsh-system-prompts — bundle patch layer.
 #
-# 本文件是「bundle 声明」：DSH 装配 profile 时，会把这一层叠加到 profile 树上。
-# insert 一行语言约束插件；插件自身的默认值（简体中文、order -900）在
-# lib/index.js 里，这里不必重复。
+# 本文件是「bundle 声明」：DSH 装配 profile 时，会把这一层叠加到 profile 树上，
+# 本插件因此以「标准插件」身份出现在插件列表里（host 半 + client 设置页）。
 #
-# 想改语言/顺序/段名：不要在库里改本文件，改你 **profile** 的
-# cordis.patch.yml —— 同 id 条目按完整替换语义覆盖，例如：
+# v2 起**提示词内容不在这里配**：运行时权威是
+#   <DSH_HOME>/system-prompts.json
+# 由 DSH 设置面板 →「系统提示词」页面维护（新增/编辑/排序/删除，保存即生效）。
 #
-#   - id: thinking-language
-#     name: dsh-thinking-language
+# 下面的 config 只在**首次初始化**那份配置文件时用作默认值，用于兼容 v1 的写法：
+#
+#   - id: system-prompts
+#     name: dsh-system-prompts
 #     config:
-#       language: ja
+#       language: ja          # 首次初始化时默认预置条目换成日文
+#       # text: 自定义正文     # 给了就完全覆盖语言模板
+#       # enabled: false      # 首次初始化即为停用
 #
 # 详见 examples/profile-override.cordis.patch.yml
 - insert:
-    - id: thinking-language
-      name: dsh-thinking-language
+    - id: system-prompts
+      name: dsh-system-prompts

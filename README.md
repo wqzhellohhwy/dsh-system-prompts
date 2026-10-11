@@ -1,29 +1,120 @@
-# dsh-thinking-language
+# dsh-system-prompts
 
-> 让 DeepSeek Harness 的模型**用你指定的语言思考**——不只是回答，而是连内部推理一起。
-> 默认简体中文，可配置为任意语言。
+> **DSH 的系统提示词管理器**：在设置面板里新增 / 编辑 / 排序 / 删除**多条** system 提示词段，保存即生效。
+> 随包预置一条「用简体中文思考」——也就是 1.x 的全部功能，现在你可以改它、也可以再加别的。
 
-一个极小的 DSH 插件：它做的唯一一件事，是往 **system 提示词**里注册**一段**语言约束。
+<p align="center">
+  <b>设置面板 →「系统提示词」→ 管理页面</b><br>
+  <sub>每条提示词 = 一个独立的 system 提示词段，按顺序拼在 harness 身份之后、部署 persona 之前。</sub>
+</p>
 
 ---
 
-## 为什么需要它
+## 这是什么
 
-「让模型用中文思考」这件事，**写进 `AGENTS.md` 不管用**。
+DSH 的 system 提示词不是一份静态文件，而是**运行时按 order 拼装**的：各插件往
+`ctx.systemPrompt` 注册自己的段，按顺序值升序拼接后，作为 **system 角色消息**写进会话历史。
 
-`AGENTS.md` 由 `@deepseek-ai/dsh-agent-instructions` 收集，落地成一条 **user 角色的
-`<system-reminder>` 快照**——它的性质是"建议"，不是"不变量"。实测结论：
+本插件把这件事变成一个**可在界面上管理的列表**：
 
-> 即便 `AGENTS.md` 里白纸黑字写着「**任何思考和输出必须使用中文**」，
-> 模型依然整轮整轮地用英文推理。
+- 设置面板左侧多出一项「**系统提示词**」，点进去就是管理页面；
+- 每条提示词有：标题（仅用于辨认）、正文、启用开关、顺序、删除；
+- 支持**新增任意多条**、上下移动、批量保存；
+- **保存后立即生效**——当前会话的下一轮请求就带上新内容，**不需要重启 DSH**。
 
-原因在架构上：「用哪种语言推理」是模型的**底层行为**，而 DSH 里唯一能跨轮次持续
-约束底层行为的位置是 **system 角色**——那是模型最先读到、且每一轮都在场的那一层。
+### 1.x → 2.0 的变化
 
-所以本项目把它放进 system 提示词，而不是放进 `AGENTS.md`、也不指望每轮口述。
+| | 1.x（语言钩子） | 2.0（系统提示词管理） |
+|---|---|---|
+| 段数 | 固定 1 段 | 任意多条，可增删 |
+| 配置方式 | 改 profile 的 `cordis.patch.yml` | 设置面板里点（仍兼容旧的 config 写法） |
+| 生效方式 | 改配置后**重启实例** | **保存即生效** |
+| 默认行为 | 注入「用中文思考」 | 同左（预置为第一条，可改可删） |
 
-> 顺带一句：`AGENTS.md` 里值得保留的是**你个人的工作准则**（语气、红线、流程）。
-> 语言这种"不变量"交给 system 层，两者并不冲突。
+升级到 2.0 不会改变默认行为：首次运行会把「用中文思考」那一条写进配置文件。
+
+---
+
+## 安装
+
+```powershell
+# 方式 A：本地目录 link（开发/改完即生效）
+dsh plugin --profile web add "link:D:/dsh-plugins/dsh-system-prompts"
+
+# 方式 B：直接从 GitHub 装
+dsh plugin --profile web add "github:wqzhellohhwy/dsh-system-prompts"
+
+# 方式 C：装了 dsh-super-injector 的环境，运行时热装配（免重启）
+dev_install_package  <本仓库绝对路径>  profile=<你的 profile>
+```
+
+装完重启该入口（桌面版 = 完全退出重开；web 端 = 重启后刷新页面 Ctrl+F5），
+设置面板就会出现「系统提示词」。
+
+> 桌面版（Electron）用的是 `desktop` profile，而 `dsh plugin --profile desktop` 会被 CLI 拒绝
+> （该 profile 由桌面应用专属管理），需要走桌面版自己的插件界面。
+
+---
+
+## 用法
+
+1. 打开 **设置** → 左侧「**系统提示词**」；
+2. 「＋ 新增提示词」加一条，填标题与正文；
+3. 用卡片上的「启用 / 停用」开关控制这一条是否注入，用 ▲▼ 调顺序，用「删除」移除（两步确认）；
+4. 点「**💾 保存并生效**」。状态栏显示「✅ 已保存并生效」即完成。
+
+页面底部还会实时显示**当前组装出来的段序**（如
+`harness:identity | system-prompt:xxx | deployment:persona-prefix | …`），
+用来核对到底注入了什么、排在哪儿。
+
+几个约定：
+
+- **正文留空的条目不注册**（页面上会给黄色提示）；
+- **顺序**：第 i 条的 order = 基线 + i（i 是列表下标）。默认基线 `-900`，
+  即紧跟 harness 身份（`-1000`）、排在所有部署 persona（`0`）之前。
+  用下标而不是"启用条目的序号"，是为了让停用某一条时后面的段不平移——提示词前缀保持稳定，
+  不破坏 KV 缓存的复用位置。
+- **总开关**停用后一条都不注册（依赖仍在，随时开回来）。
+- **恢复默认**回到出厂状态（只留「用中文思考」那一条，两步确认）。
+
+---
+
+## 配置文件
+
+运行时权威是：
+
+```
+<DSH_HOME>/system-prompts.json      # DSH_HOME 缺省 ~/.dsh
+```
+
+```json
+{
+  "version": 2,
+  "enabled": true,
+  "order": -900,
+  "prompts": [
+    { "id": "thinking-language", "title": "思考语言：简体中文", "text": "…", "enabled": true }
+  ]
+}
+```
+
+- 写入是原子的（先写 `.tmp` 再 rename），半截文件不会污染状态；
+- 文件损坏时回落内置默认，**不覆盖**坏文件（保留现场）；删掉该文件即恢复出厂；
+- `id` 只允许 `[A-Za-z0-9._-]`，段名是 `system-prompt:<id>`，同层重名会被 host 自动改号。
+
+### profile 里的 config（仅首次初始化时生效）
+
+```yaml
+- id: system-prompts
+  name: dsh-system-prompts
+  config:
+    language: ja        # 首次初始化时，预置那条换成日文
+    # text: 自定义正文   # 给了就完全覆盖语言模板
+    # enabled: false    # 首次初始化即为停用
+```
+
+⚠️ **已经生成过 `system-prompts.json` 的机器上，改这里没有任何效果**——那是 1.x 的写法，
+2.0 只为平滑升级保留了首次初始化的兼容。之后请一律用设置面板。
 
 ---
 
@@ -31,127 +122,63 @@
 
 **做**
 
-- 往 system 提示词注册**一个** section，content 是一段语言约束。
-- 默认挂在 order `-900`：紧跟固定的 harness 身份（`-1000`）之后、部署 persona
-  前缀（`0`）之前——读起来是一条**全局前提**，而不是又一条任务指导。
-- 默认语言 `zh-CN`（简体中文）。
+- 注册 `system-prompt:<id>` 形式的 system 提示词段，内容与顺序由设置页决定；
+- 保存即生效（`section()` 返回 disposer，改动时先撤销全部再按新列表重建）；
+- 通过宿主 webserver 暴露 `/system-prompt/api`（设置页同源 fetch 读写）。
 
 **不做**
 
-- 不读取、不替换、不改写任何已存在的 section。
-- 不碰工具面、不碰运行时上下文、不注册任何工具。
-- 不翻译代码：标识符、路径、命令名、配置键、工具原始输出**一律保持原样**
-  （这段保证写在约束文本里）。
+- 不读取、不替换、不改写任何**别人的**段（纯追加）；
+- 不碰工具面、不注册工具、不改运行时上下文；
+- 不翻译代码：提示词里怎么写就怎么注入，标识符、路径、命令名保持原样。
 
 ---
 
-## 安装
+## HTTP API（自检 / 脚本化用）
 
-DSH 的插件装进某个 **profile**。先把本仓库取到本地，再选一种方式装进去。
-
-### 方式 A：本地目录 link（推荐，改完即生效）
+挂在宿主 webserver 上（桌面版即 GUI 那个端口）：
 
 ```powershell
-git clone https://github.com/wqzhellohhwy/dsh-thinking-language.git D:\dsh-plugins\dsh-thinking-language
-dsh plugin --profile web add "link:D:/dsh-plugins/dsh-thinking-language"
+# 读当前状态：配置 + 实际注册的段 + 组装后的段序
+curl http://127.0.0.1:<port>/system-prompt/api/state
+
+# 保存（整体替换；enabled / order / prompts）
+curl -X POST http://127.0.0.1:<port>/system-prompt/api/state `
+  -H "content-type: application/json" `
+  -d '{"enabled":true,"order":-900,"prompts":[{"id":"demo","title":"示例","text":"Always answer briefly.","enabled":true}]}'
+
+# 恢复默认
+curl -X POST http://127.0.0.1:<port>/system-prompt/api/reset
 ```
 
-### 方式 B：直接从 GitHub 装
+`state` 返回里有两个字段专门用于**验证生效**：
+
+- `live`：当前真正注册上的段（id / 段名 / order）；
+- `sections`：`systemPrompt.assemble()` 组装出来的**完整段序**（含官方各段）。
+
+---
+
+## 开发与验证
+
+`lib/index.js`（host）与 `lib/client.js`（client）都是**手写 JS，无需构建**：
+client 半走的是 DSH 页面的模块协议 `window.__ModuleLoader__.load({ id, factory })`，
+内部用 `React.createElement`（不依赖 JSX 转译），改完直接生效。
+
+`scripts/render-harness.mjs` 是一个**不打开浏览器**的组件级回归脚本：mock
+`window.__ModuleLoader__` / `document` / `fetch`，用 `react-test-renderer` 真跑一遍
+「加载 → 渲染 → 新增 → 编辑 → 保存 → 删除 → 总开关 → 恢复默认」（36 项断言）：
 
 ```powershell
-dsh plugin --profile web add "github:wqzhellohhwy/dsh-thinking-language"
+npm i --no-save react@18.3.1 react-test-renderer@18.3.1
+node scripts/render-harness.mjs
 ```
 
-### 方式 C：用 dsh-super-injector 运行时注入（免重启）
+改了 client 界面后跑一次，比盯着页面刷新快。依赖不写进 `package.json`（只在本地临时装）。
 
-装了 `dsh-super-injector` 的环境里，一条命令热装配：
-
-```
-dev_install_package  <本仓库绝对路径>  profile=<你的 profile>
-```
-
-### 装完之后
-
-`dsh plugin add` 会把包写进 profile 的 `dependencies` **和** `dsh.profile.bundles`
-（本包含 `dsh.bundle.patch` 声明，是合法 bundle）。**重启该实例**即可生效。
-
----
-
-## 配置
-
-配置写在**你 profile 的** `cordis.patch.yml`（`<DSH_HOME>/profiles/<profile>/cordis.patch.yml`），
-**不要改仓库里的文件**。同 id 条目按「完整替换语义」覆盖 bundle 层。
-
-```yaml
-- id: thinking-language
-  name: dsh-thinking-language
-  config:
-    language: ja
-```
-
-| 字段 | 类型 | 默认 | 说明 |
-|---|---|---|---|
-| `enabled` | boolean | `true` | 设 `false` 就完全不注册（依赖仍在） |
-| `language` | string | `'zh-CN'` | 目标语言。可给语言标识（`zh-CN`/`zh-TW`/`en`/`ja` …），也可给自由文本（如 `Português (Brasil)`） |
-| `text` | string | — | 自定义整段约束文本；给了就完全覆盖内置模板 |
-| `section` | string | `'lang:thinking-language'` | system 提示词里的段名 |
-| `order` | number | `-900` | 段的顺序值 |
-
-内置措辞覆盖：`zh` `zh-CN/Hans/SG` `zh-TW/Hant/HK` `en` `ja` `ko` `ru` `fr` `de` `es` `pt` `it` `ar` `hi`；
-未命中的标识**原样使用**，所以任何语言都能用，不需要改代码。
-
-四个开箱可用的覆盖示例见
-[`examples/profile-override.cordis.patch.yml`](examples/profile-override.cordis.patch.yml)。
-
----
-
-## 验证它真的生效了
-
-看**模型的 system 提示词**里有没有那段。两种查法：
-
-**1）看段列表**（注入器环境下一行搞定）
-
-```js
-// dev_stage_add 一个只读探针，再 dev_stage_call
-async function (args, ctx) {
-  const sp = ctx.get('systemPrompt')
-  const a = await sp.assemble()
-  return (a.sections || []).map(s => s.name).join(' | ')
-}
-```
-
-生效时应当能看到 `lang:thinking-language` 排在 `harness:identity` 之后：
-
-```
-harness:identity | lang:thinking-language | deployment:persona-prefix | ... | deployment:persona-suffix
-```
-
-**2）看会话日志**：DSH 把组装好的 system 提示词原样写进会话日志，导出即可逐字核对
-（日志是**每行一个 zstd 帧**的多帧格式，需要按帧魔数 `28 B5 2F FD` 切帧逐帧解，
-普通的 zstd 解压只会解出第一帧）。
-
----
-
-## 原理
-
-DSH 的 system 提示词不是一份静态文件，而是**运行时按 order 拼装**的：各插件往
-`ctx.systemPrompt` 注册自己的段，按顺序值升序拼接后，作为 **system 角色消息**写进
-会话历史。
-
-本插件因此只需要一件事：
-
-```js
-ctx.effect(
-  () => ctx.systemPrompt.section({ name: SECTION, order: ORDER, text: TEXT }),
-  'thinking-language.section()',
-)
-```
-
-`@deepseek-ai/dsh-system-prompt` 的 README 里有两句关键约定，本项目就是按它们设计的：
-
-- 「外部贡献可以使用任意有限的顺序值」——所以 `-900` 是合法的；
-- 「部署方编写的提示词文本只来自配置／组合；**不存在终端用户提示词编辑 API**」
-  ——所以想改提示词，只能靠配置或插件，本项目选了"插件 + 可配置"这条路。
+**热重载（装了 dsh-super-injector 时）**：`dev_reload_package dsh-system-prompts`
+重建 host fiber 即可。注意 client 半还有一层 **pkgMeta 缓存**：
+包在 client-modules 首次扫描时若没有 `dsh.client` 声明，结果会被进程级缓存，
+加了声明必须「清缓存 + 重扫」才会被重新识别（`~/.dsh/super-injector/` 下的自愈日志会记录此事）。
 
 ---
 
@@ -160,43 +187,37 @@ ctx.effect(
 | 项 | 要求 |
 |---|---|
 | Node | `>= 22.19`（DSH 自身的要求） |
-| `@deepseek-ai/dsh-system-prompt` | `>= 0.1.0-rc.6 < 2`（peer，声明为 optional） |
-| `@deepseek-ai/cordis` | `>= 4.0.0-rc < 5`（peer，声明为 optional） |
-| DSH 版本 | 已在 **0.2.0-rc.2** 上实测生效；peer 范围刻意放宽，便于跨版本使用 |
+| `@deepseek-ai/dsh-system-prompt` | `>= 0.1.0-rc.6 < 2`（peer，optional） |
+| `@deepseek-ai/cordis` | `>= 4.0.0-rc < 5`（peer，optional） |
+| DSH 版本 | 已在 **0.2.0-rc.2** 上实测；peer 范围刻意放宽 |
 
 ---
 
 ## 常见问题
 
-**Q：为什么我在 `AGENTS.md` 里写了没用？**
-见上文「为什么需要它」——那不是提示词写得不够狠，而是**位置不对**。
+**Q：改了没反应？**
+正文改完要点「💾 保存并生效」。保存成功后是**下一轮请求**生效（已经在跑的那一轮不会变）。
+页面底部的段序就是当时的真实状态。
 
-**Q：装到哪个 profile？**
-你实际在用的那个。桌面版（Electron）用的是 `desktop` profile，而
-`dsh plugin --profile desktop` 会被 CLI 显式拒绝（该 profile 由 Electron 应用专属管理），
-需要走桌面版自己的插件界面。
-
-**Q：会拖慢请求吗？**
-每轮多一小段文本，属于固定成本。它与 harness 身份、persona 一起处在提示词**最前面**，
-前缀稳定，不破坏 KV 缓存的复用位置。
-
-**Q：能只要"回答用中文"、不约束内部推理吗？**
-可以。`text` 完全自定义，写你要的那句即可。
+**Q：为什么 `AGENTS.md` 里写「必须用中文思考」不管用？**
+`AGENTS.md` 由 `dsh-agent-instructions` 收集，落地成一条 **user 角色**的 `<system-reminder>` 快照
+——它是"建议"，不是"不变量"。而"用哪种语言推理"是模型的底层行为，需要落在 **system 角色**里。
+本插件的预置条目就是干这个的。
 
 **Q：同一个 profile 装两次会怎样？**
-**不要这么干。** `systemPrompt` 把段名当**唯一键**，同名重复注册会被直接拒绝并抛错：
+**不要这么干。** `systemPrompt` 把段名当唯一键，同名重复注册会被直接拒绝
+（`prompt section "..." is already registered`）。本插件内部对同一次保存的列表做了去重，
+但两个**插件实例**各注册一份同名段仍会互相顶掉。
 
-```
-prompt section "lang:thinking-language" is already registered
-```
+**Q：`order` 能排到别的段后面吗？**
+能。把基线顺序改成比目标段更大的值即可（例如 `10300`）。官方段序在设置页底部可见。
 
-既不会静默覆盖，也不会叠加成两段。想换语言请**覆盖同 id 的 `config`**（见上文
-[配置](#配置)），而不是再装一份。
+**Q：会拖慢请求吗？**
+每轮多几段固定文本，属于固定成本。默认位置在提示词**最前面**，前缀稳定，不破坏 KV 缓存复用。
 
-**Q：改了配置 / 卸载了插件，为什么提示词里还留着旧的那段？**
-`systemPrompt` 服务只有 `section()`，**没有移除 API**；一段文本的生命周期由注册它的
-fiber 决定。所以配置变更或卸载之后，**重启该实例**才会彻底干净。重启后一切都按
-当前的 `bundles` + `cordis.patch.yml` 重新装配，不会留下残留。
+**Q：`system-prompt:xxx` 这些段是在哪一段被消费的？**
+作为 **system 角色消息**写进会话历史；DSH 也会把组装好的 system 提示词原样写进会话日志，
+导出即可逐字核对。
 
 ---
 
