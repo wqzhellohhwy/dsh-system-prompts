@@ -14,3 +14,7 @@ Thumbs.db
 *.tmp
 *.bak
 *.bak-*
+# 备份/临时（2026-10-25 补）
+.tmp/
+*.TMP
+*.BROKEN*
